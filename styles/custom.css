@@ -1,4 +1,9 @@
 .icon.icon-search img {
     height: 19px;
     width: auto;
+    margin-top: 0px;
+}
+
+.icon.icon-mail img {
+    margin-top: -2px;
 }
