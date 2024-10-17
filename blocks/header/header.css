@@ -48,6 +48,8 @@ header nav[aria-expanded='true'] {
 header nav p {
   margin: 0;
   line-height: 1;
+  float: left;
+  margin-right: 24px;
 }
 
 header nav a:any-link {
