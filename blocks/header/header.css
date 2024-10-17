@@ -222,6 +222,7 @@ header nav .nav-sections ul > li > ul > li {
     display: flex;
     gap: 24px;
     margin: 0;
+    margin-left: 150px;
   }
 
   header nav .nav-sections .default-content-wrapper > ul > li {
