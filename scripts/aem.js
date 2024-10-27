@@ -18,10 +18,7 @@ function sampleRUM(checkpoint, data) {
     window.hlx = window.hlx || {};
     sampleRUM.enhance = () => {};
     if (!window.hlx.rum) {
-      const weight = (window.SAMPLE_PAGEVIEWS_AT_RATE === 'high' && 10)
-        || (window.SAMPLE_PAGEVIEWS_AT_RATE === 'low' && 1000)
-        || (new URLSearchParams(window.location.search).get('rum') === 'on' && 1)
-        || 100;
+      const weight = new URLSearchParams(window.location.search).get('rum') === 'on' ? 1 : 100;
       const id = Math.random().toString(36).slice(-4);
       const isSelected = Math.random() * weight < 1;
       // eslint-disable-next-line object-curly-newline, max-len
@@ -35,39 +32,23 @@ function sampleRUM(checkpoint, data) {
         collector: (...args) => window.hlx.rum.queue.push(args),
       };
       if (isSelected) {
-        const dataFromErrorObj = (error) => {
-          const errData = { source: 'undefined error' };
-          try {
-            errData.target = error.toString();
-            errData.source = error.stack
-              .split('\n')
-              .filter((line) => line.match(/https?:\/\//))
-              .shift()
-              .replace(/at ([^ ]+) \((.+)\)/, '$1@$2')
-              .replace(/ at /, '@')
-              .trim();
-          } catch (err) {
-            /* error structure was not as expected */
-          }
-          return errData;
-        };
-
-        window.addEventListener('error', ({ error }) => {
-          const errData = dataFromErrorObj(error);
-          sampleRUM('error', errData);
+        ['error', 'unhandledrejection'].forEach((event) => {
+          window.addEventListener(event, ({ reason, error }) => {
+            const errData = { source: 'undefined error' };
+            try {
+              errData.target = (reason || error).toString();
+              errData.source = (reason || error).stack
+                .split('\n')
+                .filter((line) => line.match(/https?:\/\//))
+                .shift()
+                .replace(/at ([^ ]+) \((.+)\)/, '$1@$2')
+                .trim();
+            } catch (err) {
+              /* error structure was not as expected */
+            }
+            sampleRUM('error', errData);
+          });
         });
-
-        window.addEventListener('unhandledrejection', ({ reason }) => {
-          let errData = {
-            source: 'Unhandled Rejection',
-            target: reason || 'Unknown',
-          };
-          if (reason instanceof Error) {
-            errData = dataFromErrorObj(reason);
-          }
-          sampleRUM('error', errData);
-        });
-
         sampleRUM.baseURL = sampleRUM.baseURL || new URL(window.RUM_BASE || '/', new URL('https://rum.hlx.page'));
         sampleRUM.collectBaseURL = sampleRUM.collectBaseURL || sampleRUM.baseURL;
         sampleRUM.sendPing = (ck, time, pingData = {}) => {
@@ -113,6 +94,167 @@ function sampleRUM(checkpoint, data) {
 }
 
 /**
+ * Loads JS and CSS for a module and executes it's default export.
+ * @param {string} name The module name
+ * @param {string} jsPath The JS file to load
+ * @param {string} [cssPath] An optional CSS file to load
+ * @param {object[]} [args] Parameters to be passed to the default export when it is called
+ */
+async function loadModule(name, jsPath, cssPath, ...args) {
+  const cssLoaded = cssPath
+    ? new Promise((resolve) => { loadCSS(cssPath, resolve); })
+    : Promise.resolve();
+  const decorationComplete = jsPath
+    ? new Promise((resolve) => {
+      (async () => {
+        let mod;
+        try {
+          mod = await import(jsPath);
+          if (mod.default) {
+            await mod.default.apply(null, args);
+          }
+        } catch (error) {
+          // eslint-disable-next-line no-console
+          console.log(`failed to load module for ${name}`, error);
+        }
+        resolve(mod);
+      })();
+    })
+    : Promise.resolve();
+  return Promise.all([cssLoaded, decorationComplete])
+    .then(([, api]) => api);
+}
+
+/**
+ * Gets all the metadata elements that are in the given scope.
+ * @param {String} scope The scope/prefix for the metadata
+ * @returns an array of HTMLElement nodes that match the given scope
+ */
+function getAllMetadata(scope) {
+  return [...document.head.querySelectorAll(`meta[property^="${scope}:"],meta[name^="${scope}-"]`)]
+    .reduce((res, meta) => {
+      const id = toClassName(meta.name
+        ? meta.name.substring(scope.length + 1)
+        : meta.getAttribute('property').split(':')[1]);
+      res[id] = meta.getAttribute('content');
+      return res;
+    }, {});
+}
+// Define an execution context for plugins
+export const executionContext = {
+  createOptimizedPicture,
+  getAllMetadata,
+  getMetadata,
+  decorateBlock,
+  decorateButtons,
+  decorateIcons,
+  loadBlock,
+  loadCSS,
+  loadScript,
+  sampleRUM,
+  toCamelCase,
+  toClassName,
+};
+
+function parsePluginParams(id, config) {
+  const pluginId = !config
+    ? id.split('/').splice(id.endsWith('/') ? -2 : -1, 1)[0].replace(/\.js/, '')
+    : id;
+  const pluginConfig = {
+    load: 'eager',
+    ...(typeof config === 'string' || !config
+      ? { url: (config || id).replace(/\/$/, '') }
+      : config),
+  };
+  pluginConfig.options ||= {};
+  return { id: pluginId, config: pluginConfig };
+}
+
+class PluginsRegistry {
+  #plugins;
+
+  constructor() {
+    this.#plugins = new Map();
+  }
+
+  // Register a new plugin
+  add(id, config) {
+    const { id: pluginId, config: pluginConfig } = parsePluginParams(id, config);
+    this.#plugins.set(pluginId, pluginConfig);
+  }
+
+  // Get the plugin
+  get(id) { return this.#plugins.get(id); }
+
+  // Check if the plugin exists
+  includes(id) { return !!this.#plugins.has(id); }
+
+  // Load all plugins that are referenced by URL, and updated their configuration with the
+  // actual API they expose
+  async load(phase) {
+    [...this.#plugins.entries()]
+      .filter(([, plugin]) => plugin.condition
+      && !plugin.condition(document, plugin.options, executionContext))
+      .map(([id]) => this.#plugins.delete(id));
+    return Promise.all([...this.#plugins.entries()]
+      // Filter plugins that don't match the execution conditions
+      .filter(([, plugin]) => (
+        (!plugin.condition || plugin.condition(document, plugin.options, executionContext))
+        && phase === plugin.load && plugin.url
+      ))
+      .map(async ([key, plugin]) => {
+        try {
+          // If the plugin has a default export, it will be executed immediately
+          const pluginApi = (await loadModule(
+            key,
+            !plugin.url.endsWith('.js') ? `${plugin.url}/${key}.js` : plugin.url,
+            !plugin.url.endsWith('.js') ? `${plugin.url}/${key}.css` : null,
+            document,
+            plugin.options,
+            executionContext,
+          )) || {};
+          this.#plugins.set(key, { ...plugin, ...pluginApi });
+        } catch (err) {
+          // eslint-disable-next-line no-console
+          console.error('Could not load specified plugin', key);
+        }
+      }));
+  }
+
+  // Run a specific phase in the plugin
+  async run(phase) {
+    return [...this.#plugins.values()]
+      .reduce((promise, plugin) => ( // Using reduce to execute plugins sequencially
+        plugin[phase] && (!plugin.condition
+            || plugin.condition(document, plugin.options, executionContext))
+          ? promise.then(() => plugin[phase](document, plugin.options, executionContext))
+          : promise
+      ), Promise.resolve());
+  }
+}
+class TemplatesRegistry {
+  // Register a new template
+  // eslint-disable-next-line class-methods-use-this
+  add(id, url) {
+    if (Array.isArray(id)) {
+      id.forEach((i) => window.hlx.templates.add(i));
+      return;
+    }
+    const { id: templateId, config: templateConfig } = parsePluginParams(id, url);
+    templateConfig.condition = () => toClassName(getMetadata('template')) === templateId;
+    window.hlx.plugins.add(templateId, templateConfig);
+  }
+
+  // Get the template
+  // eslint-disable-next-line class-methods-use-this
+  get(id) { return window.hlx.plugins.get(id); }
+
+  // Check if the template exists
+  // eslint-disable-next-line class-methods-use-this
+  includes(id) { return window.hlx.plugins.includes(id); }
+}
+
+/**
  * Setup block utils.
  */
 function setup() {
@@ -121,6 +263,8 @@ function setup() {
   window.hlx.RUM_MANUAL_ENHANCE = true;
   window.hlx.codeBasePath = '';
   window.hlx.lighthouse = new URLSearchParams(window.location.search).get('lighthouse') === 'on';
+  window.hlx.plugins = new PluginsRegistry();
+  window.hlx.templates = new TemplatesRegistry();
 
   const scriptEl = document.querySelector('script[src$="/scripts/scripts.js"]');
   if (scriptEl) {
@@ -700,6 +844,7 @@ export {
   decorateTemplateAndTheme,
   fetchPlaceholders,
   getMetadata,
+  getAllMetadata,
   loadBlock,
   loadCSS,
   loadFooter,
