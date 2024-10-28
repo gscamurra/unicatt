@@ -269,3 +269,8 @@ main .section.highlight {
   background: #1c3459;
   color: #FFF;
 }
+
+.campus a.button:any-link, button {
+  background: #fff;
+  color: #1c3459;
+}
