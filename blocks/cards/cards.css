@@ -43,3 +43,17 @@ font-size: 13px;
   font-size: 16px;
   margin-top: 0;
  }
+
+ .event .cards-card-body p strong {
+  font-size: 13px;
+  }
+  
+  .event .cards-card-body h3 {
+    font-size: 20px;
+    margin-top: 0;
+   }
+  
+   .event .cards-card-body h4 {
+    font-size: 15px;
+    margin-top: 0;
+   }
