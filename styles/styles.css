@@ -266,7 +266,7 @@ main .section.highlight {
 }
 
 .campus {
-  background: #1c3459;
+  background: #193458;
   color: #FFF;
 }
 
@@ -292,4 +292,8 @@ main .section.highlight {
   display: inline-block;
     width: 100%;
     margin-bottom: 35px;
+}
+
+.footer .default-content-wrapper {
+  margin-top: 40px;
 }
