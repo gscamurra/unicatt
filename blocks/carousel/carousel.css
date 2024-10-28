@@ -160,8 +160,8 @@
 }
 
 .slidertest .carousel-slide-content {
-  width: 100%;
-  text-align: center;
-  margin: 0;
-  padding: 0;
+  width: 100% !important;
+  text-align: center !important;
+  margin: 0 !important;
+  padding: 0 !important;
 }
