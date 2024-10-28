@@ -25,3 +25,8 @@
   aspect-ratio: 4 / 4;
   object-fit: cover;
 }
+
+.sixelements .cards > ul {
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)) !important;
+  
+}
