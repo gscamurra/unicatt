@@ -158,3 +158,10 @@
   margin: 0 !important;
   padding: 0 !important;
 }
+
+.sliderTest .carousel-slide-content {
+  width: 100%;
+  text-align: center;
+  margin: 0;
+  padding: 0;
+}
