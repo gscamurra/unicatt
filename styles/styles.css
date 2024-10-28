@@ -264,3 +264,8 @@ main .section.highlight {
   margin-top: 40px;
   margin-bottom: 40px;
 }
+
+.campus {
+  background: #1c3459;
+  color: #FFF;
+}
