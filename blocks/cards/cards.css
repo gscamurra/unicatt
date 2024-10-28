@@ -33,3 +33,13 @@
 .focus .cards-card-body p strong {
 font-size: 13px;
 }
+
+.focus .cards-card-body h2 {
+  font-size: 25px;
+  margin-top: 0;
+ }
+
+ .focus .cards-card-body h3 {
+  font-size: 20px;
+  margin-top: 0;
+ }
