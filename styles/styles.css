@@ -280,7 +280,7 @@ main .section.highlight {
   background: #1c3459;
 }
 
-.footer a.button:any-link, .footer button  {
+.footer a.button:any-link, .footer button, .footer :any-link {
   color: #FFF;
   background: #1c3459;
   margin: 0;
