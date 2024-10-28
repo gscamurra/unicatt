@@ -279,3 +279,11 @@ main .section.highlight {
   color: #FFF;
   background: #1c3459;
 }
+
+.footer a.button:any-link, .footer button  {
+  color: #FFF;
+  background: #1c3459;
+  margin: 0;
+  padding: 0;
+
+}
